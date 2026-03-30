@@ -22,8 +22,9 @@ public struct JSONLParser {
         }
     }
 
-    @MainActor
-    private static let iso8601: ISO8601DateFormatter = {
+    // ISO8601DateFormatter is not Sendable, but parse() is called sequentially —
+    // nonisolated(unsafe) lets it be used from any concurrency context.
+    nonisolated(unsafe) private static let iso8601: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
@@ -35,7 +36,6 @@ public struct JSONLParser {
     ///
     /// - Parameter since: When provided, skips files whose modification date
     ///   is older than this date. Pass `nil` for a full parse.
-    @MainActor
     public static func parse(directory: URL, since: Date? = nil) throws -> [MessageRecord] {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
@@ -64,7 +64,6 @@ public struct JSONLParser {
 
     // MARK: - Private
 
-    @MainActor
     static func parseFile(at url: URL) -> [MessageRecord] {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         var records: [MessageRecord] = []

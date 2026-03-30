@@ -60,8 +60,9 @@ final class UsageViewModel: ObservableObject {
         let since: Date? = incremental ? lastParsedAt : nil
         let now = Date()
 
-        // JSONLParser.parse is @MainActor-isolated, so it must run on the main actor.
-        let newRecords = (try? JSONLParser.parse(directory: dir, since: since)) ?? []
+        let newRecords = await Task.detached(priority: .background) {
+            (try? JSONLParser.parse(directory: dir, since: since)) ?? []
+        }.value
 
         if incremental {
             cachedRecords.append(contentsOf: newRecords)
