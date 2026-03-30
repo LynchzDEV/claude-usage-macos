@@ -72,9 +72,11 @@ final class UsageViewModel: ObservableObject {
 
         lastParsedAt = now
 
+        let sessionLimit = UserDefaults.standard.integer(forKey: "sessionLimit")
+        let weeklyLimit  = UserDefaults.standard.integer(forKey: "weeklyLimit")
         let limits = UsageLimits(
-            sessionOutputTokenLimit: UserDefaults.standard.object(forKey: "sessionLimit") as? Int ?? 140_000,
-            weeklyOutputTokenLimit: UserDefaults.standard.object(forKey: "weeklyLimit") as? Int ?? 980_000
+            sessionOutputTokenLimit: sessionLimit > 0 ? sessionLimit : 140_000,
+            weeklyOutputTokenLimit:  weeklyLimit  > 0 ? weeklyLimit  : 980_000
         )
 
         stats = UsageAggregator.aggregate(records: cachedRecords, now: now, limits: limits)
@@ -94,5 +96,12 @@ final class UsageViewModel: ObservableObject {
             Task { @MainActor [weak self] in await self?.incrementalRefresh() }
         }
         fileWatcher?.start()
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            timer?.invalidate()
+            fileWatcher?.stop()
+        }
     }
 }
