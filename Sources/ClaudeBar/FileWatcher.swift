@@ -48,11 +48,7 @@ final class FileWatcher {
             )
         ) else { return }
 
-        FSEventStreamScheduleWithRunLoop(
-            stream,
-            CFRunLoopGetMain(),
-            CFRunLoopMode.defaultMode.rawValue
-        )
+        FSEventStreamSetDispatchQueue(stream, .main)
         FSEventStreamStart(stream)
         streamRef = stream
     }
