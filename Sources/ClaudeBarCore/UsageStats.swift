@@ -10,6 +10,11 @@ public struct MessageRecord: Sendable {
     public let cacheReadTokens: Int
     public let cacheCreationTokens: Int
 
+    /// All token types summed — matches how Claude tracks rate-limit usage.
+    public var totalTokens: Int {
+        inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens
+    }
+
     public init(
         timestamp: Date, model: String,
         inputTokens: Int, outputTokens: Int,
@@ -59,16 +64,29 @@ public struct UsageStats: Sendable {
 
 /// User-configurable ceilings for percentage calculations.
 public struct UsageLimits: Sendable {
-    public let sessionOutputTokenLimit: Int
-    public let weeklyOutputTokenLimit: Int
+    public let sessionTokenLimit: Int
+    public let weeklyTokenLimit: Int
+    /// Calendar weekday for weekly reset: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
+    public let weeklyResetWeekday: Int
+    /// Hour (0-23) at which the weekly window resets
+    public let weeklyResetHour: Int
 
     public static let defaults = UsageLimits(
-        sessionOutputTokenLimit: 140_000,
-        weeklyOutputTokenLimit: 980_000
+        sessionTokenLimit:  100_000,   // derived: 26,505 output tokens = 27% on Claude Pro
+        weeklyTokenLimit:   1_176_000, // derived: 304,029 output tokens = 26% on Claude Pro
+        weeklyResetWeekday: 2,         // Monday
+        weeklyResetHour:    11         // 11 AM — typical Claude Pro billing reset
     )
 
-    public init(sessionOutputTokenLimit: Int, weeklyOutputTokenLimit: Int) {
-        self.sessionOutputTokenLimit = sessionOutputTokenLimit
-        self.weeklyOutputTokenLimit = weeklyOutputTokenLimit
+    public init(
+        sessionTokenLimit: Int,
+        weeklyTokenLimit: Int,
+        weeklyResetWeekday: Int = 2,
+        weeklyResetHour: Int = 0
+    ) {
+        self.sessionTokenLimit = sessionTokenLimit
+        self.weeklyTokenLimit = weeklyTokenLimit
+        self.weeklyResetWeekday = weeklyResetWeekday
+        self.weeklyResetHour = weeklyResetHour
     }
 }

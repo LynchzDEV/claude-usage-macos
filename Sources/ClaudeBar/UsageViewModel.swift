@@ -15,9 +15,22 @@ final class UsageViewModel: ObservableObject {
 
     private var fileWatcher: FileWatcher?
     private var timer: Timer?
-    // Full record cache — rebuilt on full refresh, appended on incremental
     private var cachedRecords: [MessageRecord] = []
-    private var lastParsedAt: Date?
+    private var isStarted = false
+
+    init() {
+        Self.migrateDefaultsIfNeeded()
+        Task { await start() }
+    }
+
+    /// One-time migration: replaces old default values that may be stored in UserDefaults
+    /// from a previous launch before the correct limits were determined.
+    private static func migrateDefaultsIfNeeded() {
+        let d = UserDefaults.standard
+        if d.integer(forKey: "sessionLimit") == 140_000 { d.set(100_000,   forKey: "sessionLimit") }
+        if d.integer(forKey: "weeklyLimit")  == 980_000 { d.set(1_176_000, forKey: "weeklyLimit") }
+        if d.integer(forKey: "weeklyResetHour") == 0    { d.set(11,        forKey: "weeklyResetHour") }
+    }
 
     // MARK: - Public
 
@@ -32,6 +45,8 @@ final class UsageViewModel: ObservableObject {
     }
 
     func start() async {
+        guard !isStarted else { return }
+        isStarted = true
         isLoading = true
         await fullRefresh()
         isLoading = false
@@ -46,37 +61,28 @@ final class UsageViewModel: ObservableObject {
     // MARK: - Private refresh
 
     private func fullRefresh() async {
-        lastParsedAt = nil
-        cachedRecords = []
-        await loadAndAggregate(incremental: false)
+        await loadAndAggregate()
     }
 
-    private func incrementalRefresh() async {
-        await loadAndAggregate(incremental: true)
-    }
-
-    private func loadAndAggregate(incremental: Bool) async {
+    private func loadAndAggregate() async {
         let dir = claudeProjectsDir
-        let since: Date? = incremental ? lastParsedAt : nil
         let now = Date()
 
-        let newRecords = await Task.detached(priority: .background) {
-            (try? JSONLParser.parse(directory: dir, since: since)) ?? []
+        let records = await Task.detached(priority: .background) {
+            (try? JSONLParser.parse(directory: dir)) ?? []
         }.value
 
-        if incremental {
-            cachedRecords.append(contentsOf: newRecords)
-        } else {
-            cachedRecords = newRecords
-        }
+        cachedRecords = records
 
-        lastParsedAt = now
-
-        let sessionLimit = UserDefaults.standard.integer(forKey: "sessionLimit")
-        let weeklyLimit  = UserDefaults.standard.integer(forKey: "weeklyLimit")
+        let sessionLimit      = UserDefaults.standard.integer(forKey: "sessionLimit")
+        let weeklyLimit       = UserDefaults.standard.integer(forKey: "weeklyLimit")
+        let weeklyResetDay    = UserDefaults.standard.integer(forKey: "weeklyResetWeekday")
+        let weeklyResetHour   = UserDefaults.standard.integer(forKey: "weeklyResetHour")
         let limits = UsageLimits(
-            sessionOutputTokenLimit: sessionLimit > 0 ? sessionLimit : 140_000,
-            weeklyOutputTokenLimit:  weeklyLimit  > 0 ? weeklyLimit  : 980_000
+            sessionTokenLimit:    sessionLimit   > 0 ? sessionLimit   : 140_000,
+            weeklyTokenLimit:     weeklyLimit    > 0 ? weeklyLimit    : 980_000,
+            weeklyResetWeekday:   weeklyResetDay > 0 ? weeklyResetDay : 2,  // Monday
+            weeklyResetHour:      weeklyResetHour                           // 0 if not set
         )
 
         stats = UsageAggregator.aggregate(records: cachedRecords, now: now, limits: limits)
@@ -87,13 +93,13 @@ final class UsageViewModel: ObservableObject {
 
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.incrementalRefresh() }
+            Task { @MainActor [weak self] in await self?.fullRefresh() }
         }
     }
 
     private func startWatcher() {
         fileWatcher = FileWatcher(path: claudeProjectsDir.path) { [weak self] in
-            Task { @MainActor [weak self] in await self?.incrementalRefresh() }
+            Task { @MainActor [weak self] in await self?.fullRefresh() }
         }
         fileWatcher?.start()
     }

@@ -2,12 +2,20 @@
 import SwiftUI
 import ClaudeBarCore
 
+
 struct PopoverView: View {
-    @StateObject private var viewModel = UsageViewModel()
+    @EnvironmentObject private var viewModel: UsageViewModel
     @AppStorage("showCostRow") private var showCostRow: Bool = true
     @State private var showingSettings = false
 
     var body: some View {
+        contentStack
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
+    }
+
+    private var contentStack: some View {
         VStack(spacing: 0) {
             headerRow
 
@@ -25,32 +33,12 @@ struct PopoverView: View {
             footerRow
         }
         .frame(width: 320)
-        .background(glassBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.3), .white.opacity(0.05)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-        }
-        .task { await viewModel.start() }
     }
 
     // MARK: - Header
 
     private var headerRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
             Image(systemName: "brain")
                 .font(.body)
             Text("Claude")
@@ -113,10 +101,15 @@ struct PopoverView: View {
 
             GlassProgressBar(value: stats.percentage / 100)
 
-            Text("\(Int(stats.percentage))%")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.primary)
-                .frame(width: 34, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("\(Int(stats.percentage))%")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.primary)
+                Text(tokenString(stats.tokensUsed))
+                    .font(.system(size: 9).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 44, alignment: .trailing)
 
             Text(timeRemaining(until: stats.windowEnd))
                 .font(.caption)
@@ -177,26 +170,24 @@ struct PopoverView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - Background
-
-    @ViewBuilder
-    private var glassBackground: some View {
-        if #available(macOS 26, *) {
-            Color.clear.glassEffect()
-        } else {
-            Rectangle().fill(.ultraThinMaterial)
-        }
-    }
-
     // MARK: - Helpers
+
+    private func tokenString(_ n: Int) -> String {
+        n >= 1_000 ? "\(n / 1_000).\((n % 1_000) / 100)k" : "\(n)"
+    }
 
     private func timeRemaining(until date: Date) -> String {
         let secs = date.timeIntervalSinceNow
         guard secs > 0 else { return "now" }
         let hrs  = Int(secs) / 3600
         let mins = (Int(secs) % 3600) / 60
-        if hrs >= 24 { return "\(hrs / 24)d" }
-        if hrs > 0   { return "\(hrs)h \(mins)m" }
+        if hrs >= 24 {
+            // Show "Mon 11 AM" style for distant resets
+            let fmt = DateFormatter()
+            fmt.dateFormat = "EEE h a"
+            return fmt.string(from: date)
+        }
+        if hrs > 0 { return "\(hrs)h \(mins)m" }
         return "\(mins)m"
     }
 }

@@ -3,18 +3,21 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @AppStorage("sessionLimit") private var sessionLimit: Int = 140_000
-    @AppStorage("weeklyLimit")  private var weeklyLimit: Int  = 980_000
-    @AppStorage("showCostRow")  private var showCostRow: Bool = true
+    @AppStorage("sessionLimit")        private var sessionLimit: Int  = 140_000
+    @AppStorage("weeklyLimit")         private var weeklyLimit: Int   = 980_000
+    @AppStorage("weeklyResetWeekday")  private var weeklyResetWeekday: Int = 2   // Monday
+    @AppStorage("weeklyResetHour")     private var weeklyResetHour: Int    = 11
+    @AppStorage("showCostRow")         private var showCostRow: Bool  = true
     @Environment(\.dismiss) private var dismiss
 
     @State private var launchAtLogin: Bool = {
         SMAppService.mainApp.status == .enabled
     }()
 
+    private let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Text("ClaudeBar Settings")
                     .font(.headline)
@@ -28,16 +31,44 @@ struct SettingsView: View {
             Divider()
 
             Form {
+                Section {
+                    Button("Reset to Claude Pro defaults") {
+                        sessionLimit       = 100_000
+                        weeklyLimit        = 1_176_000
+                        weeklyResetWeekday = 2
+                        weeklyResetHour    = 11
+                    }
+                    .foregroundStyle(.red)
+                }
+
                 Section("Rate Limit Ceilings") {
-                    LabeledContent("Session (5h) output tokens") {
+                    LabeledContent("Session (5h) tokens") {
                         TextField("140000", value: $sessionLimit, format: .number)
                             .frame(width: 100)
                             .textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing)
                     }
-                    LabeledContent("Weekly (7d) output tokens") {
+                    LabeledContent("Weekly tokens") {
                         TextField("980000", value: $weeklyLimit, format: .number)
                             .frame(width: 100)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                Section("Weekly Reset Schedule") {
+                    LabeledContent("Reset day") {
+                        Picker("", selection: $weeklyResetWeekday) {
+                            ForEach(1...7, id: \.self) { day in
+                                Text(weekdays[day - 1]).tag(day)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 80)
+                    }
+                    LabeledContent("Reset hour (0–23)") {
+                        TextField("0", value: $weeklyResetHour, format: .number)
+                            .frame(width: 50)
                             .textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing)
                     }
@@ -51,15 +82,9 @@ struct SettingsView: View {
                     Toggle("Launch at login", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { _, enabled in
                             do {
-                                if enabled {
-                                    try SMAppService.mainApp.register()
-                                } else {
-                                    try SMAppService.mainApp.unregister()
-                                }
-                            } catch {
-                                // Launch-at-login requires a signed app bundle;
-                                // silently ignore in dev builds
-                            }
+                                if enabled { try SMAppService.mainApp.register() }
+                                else       { try SMAppService.mainApp.unregister() }
+                            } catch {}
                         }
                 }
 
@@ -72,7 +97,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
         }
-        .frame(width: 380, height: 440)
+        .frame(width: 380, height: 480)
         .background(.ultraThinMaterial)
     }
 }
