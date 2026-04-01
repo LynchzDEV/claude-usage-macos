@@ -3,7 +3,7 @@ import XCTest
 
 final class UsageAggregatorTests: XCTestCase {
 
-    let limits = UsageLimits(sessionOutputTokenLimit: 10_000, weeklyOutputTokenLimit: 70_000)
+    let limits = UsageLimits(sessionTokenLimit: 10_000, weeklyTokenLimit: 70_000)
 
     // MARK: - Session window (last 5 hours)
 
@@ -41,23 +41,33 @@ final class UsageAggregatorTests: XCTestCase {
         XCTAssertEqual(stats.session.tokensUsed, 0)
     }
 
-    // MARK: - Weekly window (last 7 days)
+    // MARK: - Weekly window (Mon 11 AM fixed reset)
+    // Use a fixed "now" of Wednesday 2026-02-04 15:00 UTC so the last Mon 11 AM
+    // is deterministically 2026-02-02 11:00 local = ~50h before now.
 
-    func test_weekly_includesRecordsWithinLast7Days() {
-        let records = [
-            makeRecord(daysAgo: 6, outputTokens: 3000),
-            makeRecord(daysAgo: 8, outputTokens: 9999), // outside
-        ]
+    /// Wednesday 2026-02-04 15:00:00 UTC
+    var fixedNow: Date {
+        var comps = DateComponents()
+        comps.year = 2026; comps.month = 2; comps.day = 4
+        comps.hour = 15; comps.minute = 0; comps.second = 0
+        comps.timeZone = TimeZone(identifier: "UTC")
+        return Calendar.current.date(from: comps)!
+    }
 
-        let stats = UsageAggregator.aggregate(records: records, now: Date(), limits: limits)
+    func test_weekly_includesRecordsSinceLastMonday11AM() {
+        // Use fixed now. Records inside/outside the Mon-11AM window.
+        let inside  = makeRecordAt(fixedNow.addingTimeInterval(-24 * 3600), outputTokens: 3000)   // Tuesday
+        let outside = makeRecordAt(fixedNow.addingTimeInterval(-8 * 24 * 3600), outputTokens: 9999) // last week
+
+        let stats = UsageAggregator.aggregate(records: [inside, outside], now: fixedNow, limits: limits)
 
         XCTAssertEqual(stats.weekly.tokensUsed, 3000)
     }
 
     func test_weekly_percentageIsProportionalToLimit() {
-        let records = [makeRecord(daysAgo: 3, outputTokens: 35_000)]
+        let record = makeRecordAt(fixedNow.addingTimeInterval(-24 * 3600), outputTokens: 35_000)
 
-        let stats = UsageAggregator.aggregate(records: records, now: Date(), limits: limits)
+        let stats = UsageAggregator.aggregate(records: [record], now: fixedNow, limits: limits)
 
         XCTAssertEqual(stats.weekly.percentage, 50.0, accuracy: 0.01)
     }
@@ -97,10 +107,17 @@ final class UsageAggregatorTests: XCTestCase {
         MessageRecord(
             timestamp: Date().addingTimeInterval(-(hoursAgo * 3600 + daysAgo * 86400)),
             model: "claude-sonnet-4-6",
-            inputTokens: 0,
-            outputTokens: outputTokens,
-            cacheReadTokens: 0,
-            cacheCreationTokens: 0
+            inputTokens: 0, outputTokens: outputTokens,
+            cacheReadTokens: 0, cacheCreationTokens: 0
+        )
+    }
+
+    func makeRecordAt(_ date: Date, outputTokens: Int) -> MessageRecord {
+        MessageRecord(
+            timestamp: date,
+            model: "claude-sonnet-4-6",
+            inputTokens: 0, outputTokens: outputTokens,
+            cacheReadTokens: 0, cacheCreationTokens: 0
         )
     }
 }

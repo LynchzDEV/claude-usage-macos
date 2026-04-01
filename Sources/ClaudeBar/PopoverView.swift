@@ -9,10 +9,16 @@ struct PopoverView: View {
     @State private var showingSettings = false
 
     var body: some View {
-        contentStack
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
+        ZStack {
+            if showingSettings {
+                SettingsView(showingSettings: $showingSettings)
+                    .transition(.move(edge: .trailing))
+            } else {
+                contentStack
+                    .transition(.move(edge: .leading))
             }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showingSettings)
     }
 
     private var contentStack: some View {
@@ -39,8 +45,9 @@ struct PopoverView: View {
 
     private var headerRow: some View {
         HStack(spacing: 6) {
-            Image(systemName: "brain")
-                .font(.body)
+            Image(nsImage: AppIcon.menuBarImage)
+                .resizable()
+                .frame(width: 16, height: 16)
             Text("Claude")
                 .font(.headline)
             Spacer()
@@ -149,6 +156,7 @@ struct PopoverView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.callout)
+                    .symbolEffect(.rotate, isActive: viewModel.isRefreshing)
             }
             .buttonStyle(.plain)
 
@@ -181,13 +189,9 @@ struct PopoverView: View {
         guard secs > 0 else { return "now" }
         let hrs  = Int(secs) / 3600
         let mins = (Int(secs) % 3600) / 60
-        if hrs >= 24 {
-            // Show "Mon 11 AM" style for distant resets
-            let fmt = DateFormatter()
-            fmt.dateFormat = "EEE h a"
-            return fmt.string(from: date)
-        }
-        if hrs > 0 { return "\(hrs)h \(mins)m" }
+        let days = hrs / 24
+        if days >= 1 { return "\(days)d \(hrs % 24)h" }
+        if hrs > 0   { return "\(hrs)h \(mins)m" }
         return "\(mins)m"
     }
 }

@@ -15,7 +15,8 @@ let package = Package(
         .executableTarget(
             name: "ClaudeBar",
             dependencies: ["ClaudeBarCore"],
-            path: "Sources/ClaudeBar"
+            path: "Sources/ClaudeBar",
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "ClaudeBarCoreTests",

@@ -3,18 +3,14 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @AppStorage("sessionLimit")        private var sessionLimit: Int  = 140_000
-    @AppStorage("weeklyLimit")         private var weeklyLimit: Int   = 980_000
-    @AppStorage("weeklyResetWeekday")  private var weeklyResetWeekday: Int = 2   // Monday
-    @AppStorage("weeklyResetHour")     private var weeklyResetHour: Int    = 11
-    @AppStorage("showCostRow")         private var showCostRow: Bool  = true
-    @Environment(\.dismiss) private var dismiss
+    @AppStorage("sessionLimit") private var sessionLimit: Int  = 140_000
+    @AppStorage("weeklyLimit")  private var weeklyLimit: Int   = 980_000
+    @AppStorage("showCostRow")  private var showCostRow: Bool  = true
+    @Binding var showingSettings: Bool
 
     @State private var launchAtLogin: Bool = {
         SMAppService.mainApp.status == .enabled
     }()
-
-    private let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,7 +18,7 @@ struct SettingsView: View {
                 Text("ClaudeBar Settings")
                     .font(.headline)
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("Done") { showingSettings = false }
                     .keyboardShortcut(.return)
             }
             .padding([.horizontal, .top], 20)
@@ -33,10 +29,8 @@ struct SettingsView: View {
             Form {
                 Section {
                     Button("Reset to Claude Pro defaults") {
-                        sessionLimit       = 100_000
-                        weeklyLimit        = 1_176_000
-                        weeklyResetWeekday = 2
-                        weeklyResetHour    = 11
+                        sessionLimit = 100_000
+                        weeklyLimit  = 1_176_000
                     }
                     .foregroundStyle(.red)
                 }
@@ -51,24 +45,6 @@ struct SettingsView: View {
                     LabeledContent("Weekly tokens") {
                         TextField("980000", value: $weeklyLimit, format: .number)
                             .frame(width: 100)
-                            .textFieldStyle(.roundedBorder)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
-
-                Section("Weekly Reset Schedule") {
-                    LabeledContent("Reset day") {
-                        Picker("", selection: $weeklyResetWeekday) {
-                            ForEach(1...7, id: \.self) { day in
-                                Text(weekdays[day - 1]).tag(day)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(width: 80)
-                    }
-                    LabeledContent("Reset hour (0–23)") {
-                        TextField("0", value: $weeklyResetHour, format: .number)
-                            .frame(width: 50)
                             .textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing)
                     }
@@ -97,7 +73,7 @@ struct SettingsView: View {
             }
             .formStyle(.grouped)
         }
-        .frame(width: 380, height: 480)
+        .frame(width: 320)
         .background(.ultraThinMaterial)
     }
 }

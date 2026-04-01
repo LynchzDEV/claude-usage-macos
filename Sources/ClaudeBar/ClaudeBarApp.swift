@@ -22,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Status bar icon
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "brain", accessibilityDescription: "Claude")
+            button.image = AppIcon.menuBarImage
             button.action = #selector(togglePopover(_:))
             button.target = self
         }

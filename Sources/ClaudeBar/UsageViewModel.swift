@@ -7,6 +7,7 @@ import ClaudeBarCore
 final class UsageViewModel: ObservableObject {
     @Published var stats: UsageStats?
     @Published var isLoading: Bool = false
+    @Published var isRefreshing: Bool = false
     @Published var hasActiveSession: Bool = false
 
     private let claudeProjectsDir: URL = FileManager.default
@@ -23,13 +24,14 @@ final class UsageViewModel: ObservableObject {
         Task { await start() }
     }
 
-    /// One-time migration: replaces old default values that may be stored in UserDefaults
-    /// from a previous launch before the correct limits were determined.
+    /// One-time migration: correct old default values and remove stale keys.
     private static func migrateDefaultsIfNeeded() {
         let d = UserDefaults.standard
         if d.integer(forKey: "sessionLimit") == 140_000 { d.set(100_000,   forKey: "sessionLimit") }
         if d.integer(forKey: "weeklyLimit")  == 980_000 { d.set(1_176_000, forKey: "weeklyLimit") }
-        if d.integer(forKey: "weeklyResetHour") == 0    { d.set(11,        forKey: "weeklyResetHour") }
+        // Remove deprecated weekly reset schedule keys
+        d.removeObject(forKey: "weeklyResetWeekday")
+        d.removeObject(forKey: "weeklyResetHour")
     }
 
     // MARK: - Public
@@ -61,7 +63,9 @@ final class UsageViewModel: ObservableObject {
     // MARK: - Private refresh
 
     private func fullRefresh() async {
+        isRefreshing = true
         await loadAndAggregate()
+        isRefreshing = false
     }
 
     private func loadAndAggregate() async {
@@ -74,15 +78,11 @@ final class UsageViewModel: ObservableObject {
 
         cachedRecords = records
 
-        let sessionLimit      = UserDefaults.standard.integer(forKey: "sessionLimit")
-        let weeklyLimit       = UserDefaults.standard.integer(forKey: "weeklyLimit")
-        let weeklyResetDay    = UserDefaults.standard.integer(forKey: "weeklyResetWeekday")
-        let weeklyResetHour   = UserDefaults.standard.integer(forKey: "weeklyResetHour")
+        let sessionLimit = UserDefaults.standard.integer(forKey: "sessionLimit")
+        let weeklyLimit  = UserDefaults.standard.integer(forKey: "weeklyLimit")
         let limits = UsageLimits(
-            sessionTokenLimit:    sessionLimit   > 0 ? sessionLimit   : 140_000,
-            weeklyTokenLimit:     weeklyLimit    > 0 ? weeklyLimit    : 980_000,
-            weeklyResetWeekday:   weeklyResetDay > 0 ? weeklyResetDay : 2,  // Monday
-            weeklyResetHour:      weeklyResetHour                           // 0 if not set
+            sessionTokenLimit: sessionLimit > 0 ? sessionLimit : 100_000,
+            weeklyTokenLimit:  weeklyLimit  > 0 ? weeklyLimit  : 1_176_000
         )
 
         stats = UsageAggregator.aggregate(records: cachedRecords, now: now, limits: limits)

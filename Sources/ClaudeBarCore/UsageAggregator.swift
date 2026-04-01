@@ -2,13 +2,17 @@ import Foundation
 
 public struct UsageAggregator {
 
+    /// Claude resets weekly limits on Monday at 11:00 AM.
+    static let weeklyResetWeekday = 2  // Monday (1=Sun … 7=Sat)
+    static let weeklyResetHour    = 11
+
     public static func aggregate(
         records: [MessageRecord],
         now: Date = .init(),
         limits: UsageLimits = .defaults
     ) -> UsageStats {
         let sessionCutoff = now.addingTimeInterval(-5 * 3600)
-        let weeklyCutoff  = weeklyWindowStart(now: now, limits: limits)
+        let weeklyCutoff  = weeklyWindowStart(now: now)
         let monthStart    = Calendar.current.date(
             from: Calendar.current.dateComponents([.year, .month], from: now)
         )!
@@ -29,7 +33,7 @@ public struct UsageAggregator {
             return now.addingTimeInterval(5 * 3600)
         }()
 
-        // Weekly window end: next occurrence of the configured reset day/hour
+        // Weekly window end: next Monday 11 AM
         let weeklyWindowEnd = Calendar.current.date(
             byAdding: .weekOfYear, value: 1, to: weeklyCutoff
         )!
@@ -50,22 +54,22 @@ public struct UsageAggregator {
         )
     }
 
-    /// Most recent occurrence of the configured weekly reset day/hour at or before `now`.
-    private static func weeklyWindowStart(now: Date, limits: UsageLimits) -> Date {
+    /// Most recent Monday at 11:00 AM, at or before `now`.
+    private static func weeklyWindowStart(now: Date) -> Date {
         var cal = Calendar.current
-        cal.firstWeekday = limits.weeklyResetWeekday
+        cal.firstWeekday = weeklyResetWeekday
 
-        var comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear, .weekday, .hour, .minute, .second], from: now)
-        comps.weekday = limits.weeklyResetWeekday
-        comps.hour    = limits.weeklyResetHour
+        var comps = cal.dateComponents(
+            [.yearForWeekOfYear, .weekOfYear, .weekday, .hour, .minute, .second], from: now
+        )
+        comps.weekday = weeklyResetWeekday
+        comps.hour    = weeklyResetHour
         comps.minute  = 0
         comps.second  = 0
 
         guard var candidate = cal.date(from: comps) else {
             return now.addingTimeInterval(-7 * 24 * 3600)
         }
-
-        // If candidate is in the future, step back one week
         if candidate > now {
             candidate = cal.date(byAdding: .weekOfYear, value: -1, to: candidate) ?? candidate
         }

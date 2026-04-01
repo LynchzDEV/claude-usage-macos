@@ -66,27 +66,14 @@ public struct UsageStats: Sendable {
 public struct UsageLimits: Sendable {
     public let sessionTokenLimit: Int
     public let weeklyTokenLimit: Int
-    /// Calendar weekday for weekly reset: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
-    public let weeklyResetWeekday: Int
-    /// Hour (0-23) at which the weekly window resets
-    public let weeklyResetHour: Int
 
     public static let defaults = UsageLimits(
-        sessionTokenLimit:  100_000,   // derived: 26,505 output tokens = 27% on Claude Pro
-        weeklyTokenLimit:   1_176_000, // derived: 304,029 output tokens = 26% on Claude Pro
-        weeklyResetWeekday: 2,         // Monday
-        weeklyResetHour:    11         // 11 AM — typical Claude Pro billing reset
+        sessionTokenLimit: 100_000,
+        weeklyTokenLimit:  1_176_000
     )
 
-    public init(
-        sessionTokenLimit: Int,
-        weeklyTokenLimit: Int,
-        weeklyResetWeekday: Int = 2,
-        weeklyResetHour: Int = 0
-    ) {
+    public init(sessionTokenLimit: Int, weeklyTokenLimit: Int) {
         self.sessionTokenLimit = sessionTokenLimit
         self.weeklyTokenLimit = weeklyTokenLimit
-        self.weeklyResetWeekday = weeklyResetWeekday
-        self.weeklyResetHour = weeklyResetHour
     }
 }
